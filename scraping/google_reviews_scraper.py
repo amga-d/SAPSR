@@ -16,7 +16,7 @@ import random
 # Configuration
 MAX_REVIEWS_PER_DESTINATION = 100
 DESTINATIONS_FILE = "public_service_destination.csv"
-OUTPUT_FILE = "yogyakarta_public_service_reviews.csv"
+OUTPUT_FILE = "yogyakarta_public_service_reviews_original.csv"
 HEADLESS = False  # Set to True for production
 SCROLL_PAUSE_TIME = 1.5  # Seconds to wait between scrolls
 REQUEST_DELAY = (2, 5)  # Random delay range between destinations (seconds)
@@ -317,6 +317,28 @@ async def scrape_reviews(page, destination, max_reviews):
             except:
                 pass
             
+            # After expanding, click 'See original' if Google auto-translated the review
+            try:
+                original_selectors = [
+                    "button:has-text('See original')",
+                    "button:has-text('Lihat asli')",
+                    "a:has-text('See original')",
+                    "span:has-text('See original')",
+                    "button[aria-label='See original']",
+                    "div[role='button']:has-text('See original')",
+                ]
+                for sel in original_selectors:
+                    try:
+                        see_btn = review_html_element.locator(sel).first
+                        if await see_btn.count() > 0 and await see_btn.is_visible():
+                            await see_btn.click(timeout=1000)
+                            await page.wait_for_timeout(300)
+                            break
+                    except:
+                        continue
+            except:
+                pass
+
             # Extract review text with fallbacks
             text = ""
             try:
