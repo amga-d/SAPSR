@@ -236,15 +236,12 @@ async def scrape_reviews(page, destination, max_reviews):
     # Scroll to load more reviews
     await scroll_reviews_panel(page, max_reviews)
     
-    # Get all review elements
+    # Get all review elements and stop once we have enough unique reviews
     all_reviews = await review_html_elements.all()
     
-    # Limit to max reviews
-    reviews_to_scrape = all_reviews[:max_reviews]
-    
-    print(f"Scraping {len(reviews_to_scrape)} reviews for {destination_name}...")
-    
-    for i, review_html_element in enumerate(reviews_to_scrape):
+    print(f"Scraping up to {max_reviews} unique reviews for {destination_name}...")
+
+    for i, review_html_element in enumerate(all_reviews):
         try:
             review_key = await review_html_element.get_attribute("data-review-id") or ""
 
@@ -365,10 +362,10 @@ async def scrape_reviews(page, destination, max_reviews):
             if not review_key:
                 review_key = "|".join([
                     destination_name or "",
+                    user_url.strip() if user_url else "",
                     username.strip() if username else "",
                     review_time.strip() if review_time else "",
                     str(stars) if stars is not None else "",
-                    text.strip() if text else "",
                 ])
 
             if review_key in seen_review_keys:
@@ -386,6 +383,9 @@ async def scrape_reviews(page, destination, max_reviews):
                 "text": text.strip() if text else ""
             }
             reviews.append(review)
+
+            if len(reviews) >= max_reviews:
+                break
             
         except Exception as e:
             print(f"Error extracting review {i+1}: {e}")
