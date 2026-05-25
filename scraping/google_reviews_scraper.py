@@ -173,9 +173,12 @@ async def scroll_reviews_panel(page, max_reviews):
     same_count_iterations = 0
     
     for _ in range(20):  # Max 20 scroll attempts
-        # Get current number of reviews
+        # Get current number of unique reviews
         review_elements = page.locator("div[data-review-id]")
-        current_count = await review_elements.count()
+        review_ids = await review_elements.evaluate_all(
+            "els => Array.from(new Set(els.map(el => el.getAttribute('data-review-id')).filter(Boolean)))"
+        )
+        current_count = len(review_ids)
         
         # Check if we have enough reviews or can't load more
         if current_count >= max_reviews:
@@ -199,12 +202,13 @@ async def scroll_reviews_panel(page, max_reviews):
         except:
             break
         
-        print(f"Loaded {current_count} reviews...")
+        print(f"Loaded {current_count} unique reviews...")
 
 
 async def scrape_reviews(page, destination, max_reviews):
     """Scrape reviews from the current page. `destination` is a dict from the CSV."""
     reviews = []
+    seen_review_keys = set()
     destination_name = destination.get('name') if isinstance(destination, dict) else destination
     
     # Wait for review elements with multiple selectors
@@ -242,6 +246,8 @@ async def scrape_reviews(page, destination, max_reviews):
     
     for i, review_html_element in enumerate(reviews_to_scrape):
         try:
+            review_key = await review_html_element.get_attribute("data-review-id") or ""
+
             # Extract user info with fallbacks
             user_url = ""
             username = ""
@@ -355,6 +361,19 @@ async def scrape_reviews(page, destination, max_reviews):
                             break
             except:
                 pass
+
+            if not review_key:
+                review_key = "|".join([
+                    destination_name or "",
+                    username.strip() if username else "",
+                    review_time.strip() if review_time else "",
+                    str(stars) if stars is not None else "",
+                    text.strip() if text else "",
+                ])
+
+            if review_key in seen_review_keys:
+                continue
+            seen_review_keys.add(review_key)
             
             # Create review object (include category if available)
             review = {
