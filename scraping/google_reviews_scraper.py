@@ -1,7 +1,7 @@
 """
-Google Reviews Scraper for Yogyakarta Tourism Destinations
+Google Reviews Scraper for Yogyakarta public service Destinations
 
-This script scrapes Google Maps reviews for tourism destinations in Yogyakarta.
+This script scrapes Google Maps reviews for public service destinations in Yogyakarta.
 Based on the Apify tutorial: https://blog.apify.com/how-to-scrape-google-reviews/
 
 Maximum reviews per destination: 100
@@ -15,8 +15,8 @@ import random
 
 # Configuration
 MAX_REVIEWS_PER_DESTINATION = 100
-DESTINATIONS_FILE = "destinations.csv"
-OUTPUT_FILE = "yogyakarta_tourism_reviews.csv"
+DESTINATIONS_FILE = "public_service_destination.csv"
+OUTPUT_FILE = "yogyakarta_public_service_reviews.csv"
 HEADLESS = False  # Set to True for production
 SCROLL_PAUSE_TIME = 1.5  # Seconds to wait between scrolls
 REQUEST_DELAY = (2, 5)  # Random delay range between destinations (seconds)
@@ -202,9 +202,10 @@ async def scroll_reviews_panel(page, max_reviews):
         print(f"Loaded {current_count} reviews...")
 
 
-async def scrape_reviews(page, destination_name, max_reviews):
-    """Scrape reviews from the current page"""
+async def scrape_reviews(page, destination, max_reviews):
+    """Scrape reviews from the current page. `destination` is a dict from the CSV."""
     reviews = []
+    destination_name = destination.get('name') if isinstance(destination, dict) else destination
     
     # Wait for review elements with multiple selectors
     review_selectors = [
@@ -333,9 +334,10 @@ async def scrape_reviews(page, destination_name, max_reviews):
             except:
                 pass
             
-            # Create review object
+            # Create review object (include category if available)
             review = {
                 "destination": destination_name,
+                "category": destination.get('category', '') if isinstance(destination, dict) else "",
                 "user_url": user_url.strip() if user_url else "",
                 "username": username.strip() if username else "",
                 "stars": stars,
@@ -369,7 +371,7 @@ async def scrape_destination(page, destination, max_reviews):
         return []
     
     # Scrape reviews
-    reviews = await scrape_reviews(page, name, max_reviews)
+    reviews = await scrape_reviews(page, destination, max_reviews)
     
     print(f"Collected {len(reviews)} reviews for {name}")
     return reviews
@@ -383,7 +385,7 @@ async def run():
         destinations = destinations_df.to_dict('records')
         print(f"Loaded {len(destinations)} destinations from {DESTINATIONS_FILE}")
     except FileNotFoundError:
-        print(f"Error: {DESTINATIONS_FILE} not found. Run destinations_scraper.py first.")
+        print(f"Error: {DESTINATIONS_FILE} not found. Make sure the file exists in the project root.")
         return
     
     all_reviews = []
@@ -445,8 +447,7 @@ def save_reviews_to_csv(reviews, filename):
     if not reviews:
         print("No reviews to save")
         return
-    
-    fieldnames = ["destination", "user_url", "username", "stars", "time", "text"]
+    fieldnames = ["destination", "category", "user_url", "username", "stars", "time", "text"]
     
     with open(filename, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -478,6 +479,9 @@ def test_single_destination():
                 'name': 'Candi Prambanan',
                 'search_query': 'Candi Prambanan Yogyakarta'
             }
+
+            # include a category to match the CSV header
+            test_destination.setdefault('category', 'Unknown')
             
             # Handle consent
             try:
